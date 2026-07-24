@@ -140,6 +140,7 @@
 /* Table */
 .table-container {
   overflow-x: auto;
+  width: 100%;
 }
 
 .data-table {

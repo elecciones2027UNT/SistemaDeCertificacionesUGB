@@ -282,6 +282,7 @@
 
                     <form id="formNewMaterial"
                         style="display: none; gap: 15px; flex-wrap:wrap; margin-top: 20px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                        <input type="hidden" id="matId">
                         <div class="input-group" style="margin:0; flex:1; min-width:200px;">
                             <label>Módulo</label>
                             <select id="matModule" class="input-control"
@@ -417,6 +418,7 @@
 
                     <form id="constructorForm"
                         style="display: flex; flex-direction: column; gap: 15px; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+                        <input type="hidden" id="constId">
                         <div style="display:flex; gap:15px; flex-wrap:wrap;">
                             <div class="input-group" style="margin:0; flex:1; min-width:200px;">
                                 <label>Módulo Destino</label>
@@ -435,8 +437,6 @@
                                     onchange="toggleQuestionOptions()">
                                     <option value="multiple">Opción Múltiple (Radio)</option>
                                     <option value="tf">Verdadero / Falso</option>
-                                    <option value="link">Subida de Archivo / Enlace de Canvas (Calificación Manual)
-                                    </option>
                                 </select>
                             </div>
                             <div class="input-group" style="margin:0; width:100px;">
@@ -708,8 +708,24 @@
             if (tabId === 'tab-audit') loadAuditLogs();
         }
 
+        const sidebar = document.getElementById('sidebar');
         document.getElementById('mobileToggle').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('open');
+            const isOpen = sidebar.classList.contains('open');
+            if (!isOpen) {
+                sidebar.classList.add('open');
+                history.pushState({ sidebarOpen: true }, null, '#nav');
+            } else {
+                sidebar.classList.remove('open');
+                if (history.state && history.state.sidebarOpen) {
+                    history.back();
+                }
+            }
+        });
+
+        window.addEventListener('popstate', (e) => {
+            if (sidebar && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
         });
 
         // ================= GESTIÓN DE MATERIALES =================
@@ -771,18 +787,23 @@
                     url = document.getElementById('matLink').value;
                 }
 
-                const { data, error } = await supabase
-                    .from('module_resources')
-                    .insert([{
-                        module_id: moduleId,
-                        week_id: weekId,
-                        title: title,
-                        type: type,
-                        url: url
+                const matId = document.getElementById('matId').value;
+                let error;
+                if (matId) {
+                    const res = await supabase.from('module_resources').update({
+                        module_id: moduleId, week_id: weekId, title, type, url
+                    }).eq('id', matId);
+                    error = res.error;
+                } else {
+                    const res = await supabase.from('module_resources').insert([{
+                        module_id: moduleId, week_id: weekId, title, type, url
                     }]);
+                    error = res.error;
+                }
 
                 if (!error) {
                     document.getElementById('formNewMaterial').reset();
+                    document.getElementById('matId').value = '';
                     document.getElementById('formNewMaterial').style.display = 'none';
                     updateWeekOptions();
                     toggleMatType();
@@ -795,6 +816,27 @@
                 alert('Error al guardar el material.');
             }
         });
+
+        async function editMaterial(id) {
+            try {
+                const { data: r, error } = await supabase.from('module_resources').select('*').eq('id', id).single();
+                if (error || !r) return;
+                document.getElementById('matId').value = r.id;
+                document.getElementById('matModule').value = r.module_id;
+                updateWeekOptions();
+                setTimeout(() => {
+                    document.getElementById('matWeek').value = r.week_id;
+                }, 100);
+                document.getElementById('matTitle').value = r.title;
+                document.getElementById('matType').value = r.type;
+                toggleMatType();
+                if (r.type === 'link') {
+                    document.getElementById('matLink').value = r.url;
+                }
+                document.getElementById('formNewMaterial').style.display = 'flex';
+                document.getElementById('formNewMaterial').scrollIntoView({ behavior: 'smooth' });
+            } catch(e) { console.error(e); }
+        }
 
         async function loadMaterials() {
             try {
@@ -811,6 +853,7 @@
                                 <td>${r.title}</td>
                                 <td>${iconHtml}</td>
                                 <td>
+                                    <button class="btn-primary action-btn" onclick="editMaterial(${r.id})" title="Editar Recurso" style="margin-right:5px;">✏️</button>
                                     <button class="btn-danger action-btn" onclick="deleteMaterial(${r.id})" title="Eliminar Recurso">🗑</button>
                                 </td>
                             </tr>
@@ -1279,11 +1322,39 @@
         function toggleQuestionOptions() {
             const t = document.getElementById('constType').value;
             const container = document.getElementById('optionsContainer');
-            if (t === 'link') {
-                container.style.display = 'none';
+            const list = document.getElementById('dynamicOptionsList');
+            if (t === 'tf') {
+                container.style.display = 'block';
+                list.innerHTML = '';
+                addSpecificOption('Verdadero');
+                addSpecificOption('Falso');
+                const btn = container.querySelector('button');
+                if (btn) btn.style.display = 'none';
             } else {
                 container.style.display = 'block';
+                const btn = container.querySelector('button');
+                if (btn) btn.style.display = 'inline-block';
+                if (list.children.length === 0 || (list.children.length === 2 && list.innerHTML.includes('Verdadero'))) {
+                    list.innerHTML = '';
+                    addConstructorOption();
+                    addConstructorOption();
+                }
             }
+        }
+
+        function addSpecificOption(textValue) {
+            const container = document.getElementById('dynamicOptionsList');
+            const id = 'opt_' + Date.now() + Math.floor(Math.random() * 1000);
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.gap = '10px';
+            div.innerHTML = `
+                <input type="radio" name="constCorrectAnsRadio" value="${id}" style="width: 20px; height: 20px; cursor: pointer;" required>
+                <input type="text" class="input-control const-option-input" value="${textValue}" style="margin:0; flex:1;" readonly required>
+                <button type="button" class="btn-danger action-btn" onclick="this.parentElement.remove()" style="padding: 10px; display:none;">✖</button>
+            `;
+            container.appendChild(div);
         }
 
         function addConstructorOption() {
@@ -1336,14 +1407,27 @@
                 image_url = await uploadToSupabase(fileInput.files[0], 'archivos');
             }
 
+            const qId = document.getElementById('constId').value;
             try {
-                const { error } = await supabase.from('questions').insert([{
-                    module_id, type, text, points, options_json, correct_answer, image_url
-                }]);
+                let error;
+                if (qId) {
+                    // Update
+                    const updateData = { module_id, type, text, points, options_json, correct_answer };
+                    if (image_url) updateData.image_url = image_url;
+                    const res = await supabase.from('questions').update(updateData).eq('id', qId);
+                    error = res.error;
+                } else {
+                    // Insert
+                    const res = await supabase.from('questions').insert([{
+                        module_id, type, text, points, options_json, correct_answer, image_url
+                    }]);
+                    error = res.error;
+                }
 
                 if (!error) {
                     await glassAlert('Pregunta guardada exitosamente');
                     document.getElementById('constructorForm').reset();
+                    document.getElementById('constId').value = '';
                     toggleQuestionOptions();
                     loadQuestions();
                 } else {
@@ -1367,7 +1451,10 @@
                                 <td>${q.text}</td>
                                 <td>${q.type === 'link' ? 'Archivo/Enlace' : (q.type === 'tf' ? 'V/F' : 'Opción Múltiple')}</td>
                                 <td>${q.points} pts</td>
-                                <td><button class="action-btn btn-danger" onclick="deleteQuestion(${q.id})">Borrar</button></td>
+                                <td>
+                                    <button class="action-btn btn-primary" onclick="editQuestion(${q.id})" style="margin-right:5px;">Editar</button>
+                                    <button class="action-btn btn-danger" onclick="deleteQuestion(${q.id})">Borrar</button>
+                                </td>
                             </tr>
                         `;
                     });
@@ -1375,6 +1462,43 @@
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay preguntas.</td></tr>';
                 }
             } catch (e) { console.error(e); }
+        }
+
+        async function editQuestion(id) {
+            try {
+                const { data: q, error } = await supabase.from('questions').select('*').eq('id', id).single();
+                if (error || !q) return;
+                document.getElementById('constId').value = q.id;
+                document.getElementById('constModule').value = q.module_id;
+                document.getElementById('constType').value = q.type;
+                document.getElementById('constText').value = q.text;
+                document.getElementById('constPoints').value = q.points;
+                toggleQuestionOptions();
+                
+                if (q.type !== 'tf') {
+                    const list = document.getElementById('dynamicOptionsList');
+                    list.innerHTML = '';
+                    let opts = q.options_json ? JSON.parse(q.options_json) : [];
+                    opts.forEach(optVal => {
+                        addConstructorOption();
+                        const lastDiv = list.lastElementChild;
+                        const inp = lastDiv.querySelector('.const-option-input');
+                        const radio = lastDiv.querySelector('input[type="radio"]');
+                        inp.value = optVal;
+                        if (optVal === q.correct_answer) radio.checked = true;
+                    });
+                } else {
+                    const list = document.getElementById('dynamicOptionsList');
+                    const inputs = list.querySelectorAll('.const-option-input');
+                    inputs.forEach(inp => {
+                        if (inp.value === q.correct_answer) {
+                            inp.parentElement.querySelector('input[type="radio"]').checked = true;
+                        }
+                    });
+                }
+                // Scroll to top or to the form
+                document.getElementById('constructorForm').scrollIntoView({ behavior: 'smooth' });
+            } catch(e) { console.error(e); }
         }
 
         async function deleteQuestion(id) {

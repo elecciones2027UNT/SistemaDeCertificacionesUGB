@@ -223,8 +223,24 @@
     </div>
 
     <script>
+        const sidebar = document.getElementById('sidebar');
         document.getElementById('mobileToggle').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('open');
+            const isOpen = sidebar.classList.contains('open');
+            if (!isOpen) {
+                sidebar.classList.add('open');
+                history.pushState({ sidebarOpen: true }, null, '#nav');
+            } else {
+                sidebar.classList.remove('open');
+                if (history.state && history.state.sidebarOpen) {
+                    history.back();
+                }
+            }
+        });
+
+        window.addEventListener('popstate', (e) => {
+            if (sidebar && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
         });
 
         const currentUser = JSON.parse(sessionStorage.getItem('user'));
@@ -352,12 +368,16 @@
                             } else if (attempt.status === 'calificado') {
                                 if (attempt.is_passed) {
                                     statusEl.innerHTML = `<div style="text-align:center; padding: 20px 0;"><div class="anim-float" style="font-size:3rem; margin-bottom:10px;">✅</div><span style="color:#4ade80; display:block;">¡Módulo Aprobado!</span><span style="color:var(--text-secondary); font-size:0.9rem;">Nota: ${attempt.grade}/10</span></div>`;
+                                    actionEl.innerHTML = '';
+                                } else if (attempt.attempts >= 3) {
+                                    statusEl.innerHTML = `<div style="text-align:center; padding: 20px 0;"><div style="font-size:3rem; margin-bottom:10px;">❌</div><span style="color:#f87171; display:block;">Módulo Reprobado</span><span style="color:var(--text-secondary); font-size:0.9rem;">Límite de 3 intentos alcanzado.<br><a href="mentors.html" style="color:#60a5fa; text-decoration:underline;">Solicitar puntos a mentor</a></span></div>`;
+                                    actionEl.innerHTML = '';
                                 } else {
-                                    statusEl.innerHTML = `<div style="text-align:center; padding: 20px 0;"><div style="font-size:3rem; margin-bottom:10px;">❌</div><span style="color:#f87171; display:block;">Módulo Reprobado</span><span style="color:var(--text-secondary); font-size:0.9rem;">Nota: ${attempt.grade}/10</span></div>`;
+                                    statusEl.innerHTML = `<div style="padding: 10px; background:rgba(248, 113, 113, 0.05); border-left:3px solid #f87171; border-radius:4px;"><span style="color:#f87171; font-weight:bold; display:block;">❌ Reprobado (${attempt.grade}/10)</span><span style="font-size:0.8rem; color:white; display:block; margin-top:5px;">Puedes volver a intentarlo. Intentos Disponibles: ${3 - attempt.attempts}</span></div>`;
+                                    actionEl.innerHTML = `<button class="btn-primary" style="width:100%; margin-top:10px;" onclick="enterExam(${modId}, '${et.toISOString()}', ${attempt.attempts})">Reintentar Evaluación</button>`;
                                 }
-                                actionEl.innerHTML = '';
                             } else if (attempt.attempts >= 3) {
-                                statusEl.innerHTML = `<div style="text-align:center; padding: 20px 0;"><div style="font-size:3rem; margin-bottom:10px;">❌</div><span style="color:#f87171; display:block;">Módulo Reprobado</span><span style="color:var(--text-secondary); font-size:0.9rem;">Límite de intentos alcanzado</span></div>`;
+                                statusEl.innerHTML = `<div style="text-align:center; padding: 20px 0;"><div style="font-size:3rem; margin-bottom:10px;">❌</div><span style="color:#f87171; display:block;">Módulo Reprobado</span><span style="color:var(--text-secondary); font-size:0.9rem;">Límite de intentos alcanzado.<br><a href="mentors.html" style="color:#60a5fa; text-decoration:underline;">Solicitar puntos a mentor</a></span></div>`;
                                 actionEl.innerHTML = '';
                             } else {
                                 statusEl.innerHTML = `<div style="padding: 10px; background:rgba(74, 222, 128, 0.05); border-left:3px solid #4ade80; border-radius:4px;"><span style="color:#4ade80; font-weight:bold; display:block;">🟢 Evaluación Activa</span><span style="font-size:0.8rem; color:var(--text-secondary); display:block; margin-top:5px;">Cierra: ${et.toLocaleString()}</span><span style="font-size:0.8rem; color:white; display:block; margin-top:5px;">Intentos Disponibles: ${3 - attempt.attempts}</span></div>`;
@@ -516,11 +536,6 @@
             currentQuestions.forEach(q => {
                 if (q.type === 'multiple' || q.type === 'tf') {
                     if (!examDraft[`q_${q.id}`]) unanswered++;
-                } else if (q.type === 'link') {
-                    const hasLink = !!examDraft[`q_${q.id}_link`];
-                    const fileInput = document.getElementById(`file_q_${q.id}`);
-                    const hasFile = fileInput && fileInput.files.length > 0;
-                    if (!hasLink && !hasFile) unanswered++;
                 }
             });
 
@@ -571,11 +586,6 @@
                             <input type="radio" name="q_${q.id}" value="${opt}" onchange="saveDraft(${q.id}, this.value)" ${isChecked} style="margin-right: 10px;"> ${opt}
                         </label>`;
                     });
-                } else if (q.type === 'link') {
-                    const txtValue = examDraft[`q_${q.id}_link`] || '';
-                    html += `<p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:10px;">Puedes pegar un enlace O subir un archivo.</p>
-                        <input type="text" class="input-control" name="q_${q.id}_link" placeholder="Pega aquí tu enlace (Ej: Canva, Drive...)" oninput="saveDraft(${q.id}, this.value, 'link')" value="${txtValue}">
-                        <input type="file" class="input-control" name="q_${q.id}_file" id="file_q_${q.id}" style="margin-top:10px;">`;
                 }
 
                 block.innerHTML = html;
@@ -626,7 +636,6 @@
             btnContainer.innerHTML = '<span style="color:var(--accent-blue);">Procesando y guardando evaluación...</span>';
 
             try {
-                let requiresManualReview = true;
                 let totalScore = 0;
                 let maxScore = 0;
 
@@ -636,18 +645,11 @@
                     maxScore += (q.points || 1);
                     let studentAnswer = '';
                     let pointsAwarded = 0;
-                    let fileUrl = null;
 
                     if (q.type === 'multiple' || q.type === 'tf') {
                         studentAnswer = examDraft[`q_${q.id}`] || '';
                         if (studentAnswer === q.correct_answer) {
                             pointsAwarded = q.points || 1;
-                        }
-                    } else if (q.type === 'link') {
-                        studentAnswer = examDraft[`q_${q.id}_link`] || '';
-                        const fileInput = document.getElementById(`file_q_${q.id}`);
-                        if (fileInput && fileInput.files.length > 0) {
-                            fileUrl = await uploadToSupabase(fileInput.files[0], 'archivos');
                         }
                     }
 
@@ -656,19 +658,23 @@
                     userAnswersToInsert.push({
                         question_id: q.id,
                         student_answer: studentAnswer,
-                        file_url: fileUrl,
+                        file_url: null,
                         points_awarded: pointsAwarded
                     });
                 }
 
                 // Escalar a nota sobre 10
-                let finalGrade = 0; // Se calificará después por el docente
+                let finalGrade = 0;
+                if (maxScore > 0) {
+                    finalGrade = (totalScore / maxScore) * 10;
+                }
+
+                const isPassed = finalGrade >= 6.0;
+                const newStatus = 'calificado';
 
                 // Actualizar o Crear exam_attempts
-                const currentAttempt = attemptData[activeModuleId];
+                const currentAttempt = attemptData[activeModuleId] || {};
                 const newAttemptsCount = (currentAttempt.attempts || 0) + 1;
-                const newStatus = 'pendiente_revision';
-                const isPassed = false;
 
                 let attemptId = null;
 
@@ -735,12 +741,18 @@
                 localStorage.removeItem(`timer_start_${userId}_${activeModuleId}`);
                 localStorage.removeItem(`ai_flag_${userId}_${activeModuleId}`);
 
-                // Evitar el falso positivo de blur al mostrar el alert de éxito
                 document.getElementById('examContent').style.display = 'none';
-
-                alert('Tu evaluación ha sido entregada con éxito.\nQuedará en estado "En Revisión" esperando la calificación de tu Docente.');
-
-                window.location.reload();
+                
+                document.getElementById('examInfo').innerHTML = `
+                    <div style="text-align:center; padding: 40px 20px;">
+                        <div style="font-size:4rem; margin-bottom:20px;">${isPassed ? '✅' : '❌'}</div>
+                        <h2 style="font-size:2rem; margin-bottom:15px;" class="text-gradient">¡Evaluación ${isPassed ? 'Aprobada' : 'Reprobada'}!</h2>
+                        <p style="color:var(--text-secondary); margin-bottom:20px;">Tu examen ha sido calificado. Nota obtenida: <strong style="font-size:1.2rem; color:${isPassed ? '#4ade80' : '#f87171'}">${finalGrade.toFixed(2)} / 10</strong>.</p>
+                        ${(!isPassed && newAttemptsCount >= 3) ? '<p style="color:#f87171; margin-bottom:20px;">Has agotado tus intentos. <a href="mentors.html" style="color:#60a5fa; text-decoration:underline;">Contacta a tu mentor</a> para solicitar puntos adicionales.</p>' : ''}
+                        ${(!isPassed && newAttemptsCount < 3) ? `<p style="color:#fbbf24; margin-bottom:20px;">Te quedan ${3 - newAttemptsCount} intento(s).</p>` : ''}
+                        <button class="btn-primary" onclick="window.location.reload()" style="margin-top:20px;">Volver al Panel</button>
+                    </div>
+                `;
             } catch (err) {
                 console.error(err);
                 alert("Error al procesar la evaluación con Supabase.");

@@ -126,8 +126,24 @@
         const currentUser = JSON.parse(sessionStorage.getItem('user'));
         if (!currentUser) window.location.href = '../index.html';
 
+        const sidebar = document.getElementById('sidebar');
         document.getElementById('mobileToggle').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('open');
+            const isOpen = sidebar.classList.contains('open');
+            if (!isOpen) {
+                sidebar.classList.add('open');
+                history.pushState({ sidebarOpen: true }, null, '#nav');
+            } else {
+                sidebar.classList.remove('open');
+                if (history.state && history.state.sidebarOpen) {
+                    history.back();
+                }
+            }
+        });
+
+        window.addEventListener('popstate', (e) => {
+            if (sidebar && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
         });
 
         document.addEventListener('DOMContentLoaded', () => {
