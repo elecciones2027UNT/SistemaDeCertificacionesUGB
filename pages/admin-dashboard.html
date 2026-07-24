@@ -852,7 +852,8 @@
                                 <td style="font-weight: 500;">Módulo ${r.module_id} <br><span style="font-size:0.8rem; color:var(--text-secondary);">Semana ${r.week_id}</span></td>
                                 <td>${r.title}</td>
                                 <td>${iconHtml}</td>
-                                <td>
+                                <td style="white-space: nowrap;">
+                                    <button class="btn-secondary action-btn" onclick="window.open('${r.url}', '_blank')" title="Vista Previa" style="margin-right:5px; background: rgba(96, 165, 250, 0.2); border-color: #60a5fa; color: #60a5fa;">👁️</button>
                                     <button class="btn-primary action-btn" onclick="editMaterial(${r.id})" title="Editar Recurso" style="margin-right:5px;">✏️</button>
                                     <button class="btn-danger action-btn" onclick="deleteMaterial(${r.id})" title="Eliminar Recurso">🗑</button>
                                 </td>
