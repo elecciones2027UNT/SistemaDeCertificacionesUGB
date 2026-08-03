@@ -865,12 +865,11 @@
 
                 if (!error && data) {
                     sessionStorage.setItem('user', JSON.stringify(data));
-                    alert('Perfil actualizado.');
-                    window.location.reload();
+                    customAlert('Perfil actualizado.', 'success', () => window.location.reload());
                 } else {
-                    alert('Error actualizando perfil en Supabase');
+                    customAlert('Error actualizando perfil en Supabase', 'error');
                 }
-            } catch (e) { console.error(e); alert('Error actualizando perfil'); }
+            } catch (e) { console.error(e); customAlert('Error actualizando perfil', 'error'); }
         });
     </script>
 
@@ -894,6 +893,26 @@
             }
         });
     </script>
+
+    <!-- Custom Alert Modal -->
+    <div class="modal-overlay" id="customAlertModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 10000; justify-content: center; align-items: center;">
+        <div class="glass-panel" style="width: 90%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid rgba(255,255,255,0.2);">
+            <div id="customAlertIcon" style="font-size: 3rem; margin-bottom: 15px;">✅</div>
+            <h3 id="customAlertTitle" class="text-gradient" style="margin-bottom: 10px;">Éxito</h3>
+            <p id="customAlertMessage" style="color: var(--text-secondary); margin-bottom: 25px;"></p>
+            <button class="btn-primary" onclick="document.getElementById('customAlertModal').style.display='none'; if(window.alertCallback) window.alertCallback();">Aceptar</button>
+        </div>
+    </div>
+    <script>
+        window.customAlert = function(msg, type='success', callback=null) {
+            document.getElementById('customAlertMessage').innerText = msg;
+            document.getElementById('customAlertTitle').innerText = type === 'error' ? 'Error' : 'Éxito';
+            document.getElementById('customAlertIcon').innerText = type === 'error' ? '❌' : '✅';
+            window.alertCallback = callback;
+            document.getElementById('customAlertModal').style.display = 'flex';
+        };
+    </script>
+
 </body>
 
 </html>

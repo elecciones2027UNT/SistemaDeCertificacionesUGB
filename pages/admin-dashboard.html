@@ -751,13 +751,9 @@
             if (type === 'file') {
                 document.getElementById('matFileContainer').style.display = 'block';
                 document.getElementById('matLinkContainer').style.display = 'none';
-                document.getElementById('matFile').required = true;
-                document.getElementById('matLink').required = false;
             } else {
                 document.getElementById('matFileContainer').style.display = 'none';
                 document.getElementById('matLinkContainer').style.display = 'block';
-                document.getElementById('matFile').required = false;
-                document.getElementById('matLink').required = true;
             }
         }
 
@@ -772,32 +768,43 @@
             const weekId = document.getElementById('matWeek').value;
             const title = document.getElementById('matTitle').value;
             const type = document.getElementById('matType').value;
+            const matId = document.getElementById('matId').value;
 
             try {
                 let url = '';
                 if (type === 'file') {
                     const fileInput = document.getElementById('matFile');
                     if (fileInput.files.length > 0) {
-                        url = await uploadToSupabase(fileInput.files[0], 'archivos');
-                    } else {
-                        alert('Debes seleccionar un archivo.');
+                        const file = fileInput.files[0];
+                        showUploadProgress();
+                        try {
+                            url = await uploadToSupabase(file, 'archivos');
+                        } catch(uploadErr) {
+                            forceHideUploadProgress();
+                            throw uploadErr;
+                        }
+                        hideUploadProgress();
+                    } else if (!matId) {
+                        await glassAlert('Debes seleccionar un archivo.', 'error');
                         return;
                     }
                 } else {
                     url = document.getElementById('matLink').value;
+                    if (!url && !matId) {
+                        await glassAlert('Debes ingresar un enlace.', 'error');
+                        return;
+                    }
                 }
 
-                const matId = document.getElementById('matId').value;
+                let updates = { module_id: moduleId, week_id: weekId, title, type };
+                if (url) updates.url = url;
+
                 let error;
                 if (matId) {
-                    const res = await supabase.from('module_resources').update({
-                        module_id: moduleId, week_id: weekId, title, type, url
-                    }).eq('id', matId);
+                    const res = await supabase.from('module_resources').update(updates).eq('id', matId);
                     error = res.error;
                 } else {
-                    const res = await supabase.from('module_resources').insert([{
-                        module_id: moduleId, week_id: weekId, title, type, url
-                    }]);
+                    const res = await supabase.from('module_resources').insert([updates]);
                     error = res.error;
                 }
 
@@ -809,11 +816,11 @@
                     toggleMatType();
                     loadMaterials();
                 } else {
-                    alert('Error: ' + error.message);
+                    await glassAlert('Error: ' + error.message, 'error');
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error al guardar el material.');
+                await glassAlert('Error al guardar el material.', 'error');
             }
         });
 
@@ -840,7 +847,12 @@
 
         async function loadMaterials() {
             try {
-                const { data: resources, error } = await supabase.from('module_resources').select('*');
+                const { data: resources, error } = await supabase
+                    .from('module_resources')
+                    .select('*')
+                    .order('module_id', { ascending: true })
+                    .order('week_id', { ascending: true })
+                    .order('id', { ascending: true });
                 const tbody = document.getElementById('tableMaterials');
                 tbody.innerHTML = '';
 
@@ -2125,6 +2137,59 @@
             document.body.removeChild(downloadLink);
         };
     </script>
+
+    <!-- Upload Progress Modal -->
+    <div class="modal-overlay" id="uploadProgressModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 10005; justify-content: center; align-items: center; padding: 20px;">
+        <div class="glass-panel" style="width: 100%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid rgba(255,255,255,0.2);">
+            <div id="uploadSpinner" style="font-size: 3rem; margin-bottom: 15px; animation: spinUpload 2s linear infinite;">⏳</div>
+            <h3 class="text-gradient" style="margin-bottom: 10px;">Subiendo Archivo...</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 0.9rem;">Por favor, no cierres esta ventana. Los archivos pesados pueden demorar unos minutos.</p>
+            <div style="width: 100%; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden;">
+                <div id="uploadProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); transition: width 0.3s ease;"></div>
+            </div>
+            <p id="uploadProgressText" style="color: white; font-weight: bold; margin-top: 10px; font-size: 0.9rem;">0%</p>
+        </div>
+    </div>
+    <style>
+        @keyframes spinUpload { 100% { transform: rotate(360deg); } }
+    </style>
+    <script>
+        let uploadInterval;
+        function showUploadProgress() {
+            document.getElementById('uploadProgressModal').style.display = 'flex';
+            const bar = document.getElementById('uploadProgressBar');
+            const txt = document.getElementById('uploadProgressText');
+            let progress = 0;
+            bar.style.width = '0%';
+            txt.innerText = '0%';
+            
+            uploadInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += (90 - progress) * 0.05;
+                    if (progress > 90) progress = 90;
+                    bar.style.width = progress + '%';
+                    txt.innerText = Math.floor(progress) + '%';
+                }
+            }, 500);
+        }
+        
+        function hideUploadProgress() {
+            clearInterval(uploadInterval);
+            const bar = document.getElementById('uploadProgressBar');
+            const txt = document.getElementById('uploadProgressText');
+            bar.style.width = '100%';
+            txt.innerText = '100%';
+            setTimeout(() => {
+                document.getElementById('uploadProgressModal').style.display = 'none';
+            }, 500);
+        }
+        
+        function forceHideUploadProgress() {
+            clearInterval(uploadInterval);
+            document.getElementById('uploadProgressModal').style.display = 'none';
+        }
+    </script>
+
 </body>
 
 </html>

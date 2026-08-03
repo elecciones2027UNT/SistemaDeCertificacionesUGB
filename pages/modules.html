@@ -284,7 +284,10 @@
             try {
                 const { data: resources, error } = await supabase
                     .from('module_resources')
-                    .select('*');
+                    .select('*')
+                    .order('module_id', { ascending: true })
+                    .order('week_id', { ascending: true })
+                    .order('id', { ascending: true });
 
                 if (!error && resources) {
                     const grouped = {};
@@ -424,12 +427,11 @@
 
                 if (!error && data) {
                     sessionStorage.setItem('user', JSON.stringify(data));
-                    alert('Perfil actualizado.');
-                    window.location.reload();
+                    customAlert('Perfil actualizado.', 'success', () => window.location.reload());
                 } else {
-                    alert('Error actualizando perfil en Supabase');
+                    customAlert('Error actualizando perfil en Supabase', 'error');
                 }
-            } catch (e) { console.error(e); alert('Error actualizando perfil'); }
+            } catch (e) { console.error(e); customAlert('Error actualizando perfil', 'error'); }
         });
     </script>
 
@@ -453,6 +455,52 @@
             }
         });
     </script>
+
+    <!-- Custom Alert Modal -->
+    <div class="modal-overlay" id="customAlertModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 10000; justify-content: center; align-items: center;">
+        <div class="glass-panel" style="width: 90%; max-width: 400px; padding: 30px; text-align: center; border: 1px solid rgba(255,255,255,0.2);">
+            <div id="customAlertIcon" style="font-size: 3rem; margin-bottom: 15px;">✅</div>
+            <h3 id="customAlertTitle" class="text-gradient" style="margin-bottom: 10px;">Éxito</h3>
+            <p id="customAlertMessage" style="color: var(--text-secondary); margin-bottom: 25px;"></p>
+            <button class="btn-primary" onclick="document.getElementById('customAlertModal').style.display='none'; if(window.alertCallback) window.alertCallback();">Aceptar</button>
+        </div>
+    </div>
+    <script>
+        window.customAlert = function(msg, type='success', callback=null) {
+            document.getElementById('customAlertMessage').innerText = msg;
+            document.getElementById('customAlertTitle').innerText = type === 'error' ? 'Error' : 'Éxito';
+            document.getElementById('customAlertIcon').innerText = type === 'error' ? '❌' : '✅';
+            window.alertCallback = callback;
+            document.getElementById('customAlertModal').style.display = 'flex';
+        };
+    </script>
+
+
+    <!-- Preview Modal -->
+    <div class="modal-overlay" id="previewModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 10001; justify-content: center; align-items: center; padding: 20px;">
+        <div class="glass-panel" style="width: 100%; max-width: 900px; height: 90vh; display: flex; flex-direction: column; padding: 20px; border: 1px solid rgba(255,255,255,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 id="previewTitle" class="text-gradient" style="margin: 0; font-size: 1.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Vista Previa</h3>
+                <div style="display: flex; gap: 10px;">
+                    <a id="previewDownloadBtn" href="#" target="_blank" download class="btn-primary" style="text-decoration: none; padding: 8px 15px; display: flex; align-items: center; gap: 5px;">⬇️ Descargar</a>
+                    <button onclick="document.getElementById('previewModal').style.display='none'; document.getElementById('previewIframe').src='';" style="background: rgba(255,0,0,0.2); border: 1px solid #ef4444; color: #ef4444; border-radius: 8px; padding: 8px 15px; cursor: pointer; font-weight: bold;">✖ Cerrar</button>
+                </div>
+            </div>
+            <div style="flex: 1; border-radius: 8px; overflow: hidden; background: #fff; display: flex; justify-content: center; align-items: center;" id="previewContainer">
+                <iframe id="previewIframe" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function openPreviewModal(url, title) {
+            document.getElementById('previewTitle').innerText = title;
+            document.getElementById('previewDownloadBtn').href = url;
+            document.getElementById('previewIframe').src = url;
+            document.getElementById('previewModal').style.display = 'flex';
+        }
+    </script>
+
 </body>
 
 </html>
