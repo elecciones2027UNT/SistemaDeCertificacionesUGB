@@ -179,7 +179,7 @@
                 const renderCard = (m) => {
                     const isPriv = m.is_private === true || m.is_private === 1;
                     const avatarToUse = (isPriv && m.rol !== "admin" && m.rol !== "super_admin") ? null : m.avatar_url;
-                    const avatarStr = avatarToUse ? `<img src="${avatarToUse}" alt="${m.nombre}" class="mentor-photo">` : `<div class="mentor-photo" style="display:flex; justify-content:center; align-items:center; font-size:3rem; background:#374151; color:white;">${m.nombre.charAt(0).toUpperCase()}</div>`;
+                    const avatarStr = avatarToUse ? `<img src="${avatarToUse}" alt="${m.nombre}" class="mentor-photo" style="cursor: pointer;" onclick="openPhotoModal('${avatarToUse}')">` : `<div class="mentor-photo" style="display:flex; justify-content:center; align-items:center; font-size:3rem; background:#374151; color:white;">${m.nombre.charAt(0).toUpperCase()}</div>`;
 
                     const roleLabel = (m.rol === 'admin' || m.rol === 'super_admin') ? 'Mentor / Admin' : 'Docente';
                     const roleColor = (m.rol === 'admin' || m.rol === 'super_admin') ? 'var(--accent-blue)' : 'var(--text-secondary)';
@@ -404,6 +404,20 @@
             window.alertCallback = callback;
             document.getElementById('customAlertModal').style.display = 'flex';
         };
+    </script>
+
+    <!-- Photo Preview Modal -->
+    <div class="modal-overlay" id="photoPreviewModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 10001; justify-content: center; align-items: center;">
+        <div style="position: relative; max-width: 90%; max-height: 90%; display: flex; justify-content: center;">
+            <button onclick="document.getElementById('photoPreviewModal').style.display='none'" style="position: absolute; right: -10px; top: -40px; background: transparent; border: none; color: white; cursor: pointer; font-size: 2rem;">✖</button>
+            <img id="photoPreviewImg" src="" style="max-width: 100%; max-height: 80vh; border-radius: 12px; box-shadow: 0 0 20px rgba(0,0,0,0.5); object-fit: contain;">
+        </div>
+    </div>
+    <script>
+        function openPhotoModal(url) {
+            document.getElementById('photoPreviewImg').src = url;
+            document.getElementById('photoPreviewModal').style.display = 'flex';
+        }
     </script>
 
 </body>
