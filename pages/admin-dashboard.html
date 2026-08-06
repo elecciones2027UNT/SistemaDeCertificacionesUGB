@@ -122,6 +122,8 @@
                             Super Admin</div>
                         <li><a href="#" class="nav-item" onclick="switchTab('tab-admins', this)">Gestión de Admins</a>
                         </li>
+                        <li><a href="#" class="nav-item" onclick="switchTab('tab-weeks', this)">Gestión de Semanas</a>
+                        </li>
                         <li><a href="#" class="nav-item" onclick="switchTab('tab-audit', this)">Registro de Cambios</a>
                         </li>
                     </div>
@@ -668,6 +670,82 @@
                     </div>
                 </div>
             </div>
+
+            <!-- PESTAÑA: GESTIÓN DE SEMANAS (Solo Super Admin) -->
+            <div id="tab-weeks" class="tab-content">
+                <header class="header-top">
+                    <div>
+                        <h1>Gestión de Semanas</h1>
+                        <p style="color: var(--text-secondary); margin-top: 5px;">Agrega, modifica o elimina semanas dinámicamente.</p>
+                    </div>
+                    <button class="btn-primary" onclick="showAddWeekForm()">+ Nueva Semana</button>
+                </header>
+
+                <!-- Filter by Module -->
+                <div style="margin-top: 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    <label style="color: var(--text-secondary);">Filtrar por Módulo:</label>
+                    <select id="filterWeeksModule" class="input-control" style="background: rgba(0,0,0,0.4); color: white; width: 250px;" onchange="loadWeeksTable()">
+                        <option value="0">Todos los Módulos</option>
+                        <option value="1">Módulo 1: Office</option>
+                        <option value="2">Módulo 2: Canva</option>
+                        <option value="3">Módulo 3: Web 2.0 e IA</option>
+                        <option value="4">Módulo 4: Ciberseguridad</option>
+                    </select>
+                </div>
+
+                <div class="glass-panel" id="formWeekContainer" style="display:none; margin-bottom: 20px;">
+                    <h3 id="formWeekTitle" class="text-gradient" style="margin-bottom: 15px;">Agregar Nueva Semana</h3>
+                    <form id="formEditWeek" style="display: flex; gap: 15px; flex-wrap:wrap; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                        <input type="hidden" id="editWeekId">
+                        <div class="input-group" style="margin:0; flex:1; min-width:200px;">
+                            <label>Módulo</label>
+                            <select id="editWeekModule" class="input-control" style="background: rgba(0,0,0,0.4); color: white;" required>
+                                <option value="1">Módulo 1: Office</option>
+                                <option value="2">Módulo 2: Canva</option>
+                                <option value="3">Módulo 3: Web 2.0 e IA</option>
+                                <option value="4">Módulo 4: Ciberseguridad</option>
+                            </select>
+                        </div>
+                        <div class="input-group" style="margin:0; flex:1; min-width:200px;">
+                            <label>Número de Semana (Orden)</label>
+                            <input type="number" id="editWeekNumber" class="input-control" required min="1">
+                        </div>
+                        <div class="input-group" style="margin:0; flex:1; min-width:200px;">
+                            <label>Título de la Semana</label>
+                            <input type="text" id="editWeekTitle" placeholder="Ej. Semana 15" class="input-control" required>
+                        </div>
+                        <div class="input-group" style="margin:0; flex:1; min-width:100%;">
+                            <label>Tema o Descripción</label>
+                            <input type="text" id="editWeekDesc" placeholder="Ej. Introducción a Word..." class="input-control" required>
+                        </div>
+
+                        <div style="width: 100%; display: flex; justify-content: flex-end; margin-top: 10px; gap: 10px;">
+                            <button type="button" class="btn-primary" style="background: rgba(255,255,255,0.1); color: white;" onclick="document.getElementById('formWeekContainer').style.display='none'">Cancelar</button>
+                            <button type="submit" class="btn-primary" id="btnGuardarWeek">Guardar Semana</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="glass-panel card">
+                    <h2 class="card-title">Listado de Semanas Registradas</h2>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Módulo</th>
+                                    <th>Semana #</th>
+                                    <th>Título</th>
+                                    <th>Descripción</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableWeeks">
+                                <!-- Llenado dinámico -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -680,15 +758,17 @@
 
         // Interceptar fetch para inyectar headers de auditoría
         const originalFetch = window.fetch;
-        window.fetch = function (url, options) {
-            if (typeof url === 'string' && url.includes('/api/admin/')) {
-                options = options || {};
+        window.fetch = function () {
+            let args = Array.prototype.slice.call(arguments);
+            if (typeof args[0] === 'string' && args[0].includes('/api/admin/')) {
+                let options = args[1] || {};
                 const headers = new Headers(options.headers || {});
                 headers.set('Admin-Id', currentUser.id);
                 headers.set('Admin-Name', currentUser.nombre);
                 options.headers = headers;
+                args[1] = options;
             }
-            return originalFetch(url, options);
+            return originalFetch.apply(window, args);
         };
 
         let isEditingUser = false; // Bandera para saber si guardamos o actualizamos
@@ -706,6 +786,7 @@
             if (tabId === 'tab-exams') loadExamConfigs();
             if (tabId === 'tab-admins') loadAdmins();
             if (tabId === 'tab-audit') loadAuditLogs();
+            if (tabId === 'tab-weeks') loadWeeksTable();
         }
 
         const sidebar = document.getElementById('sidebar');
@@ -729,8 +810,8 @@
         });
 
         // ================= GESTIÓN DE MATERIALES =================
-        const weeksPerModule = { 1: 4, 2: 4, 3: 5, 4: 2 };
-        const weekOffsets = { 1: 0, 2: 4, 3: 8, 4: 13 };
+        const weeksPerModule = { 1: 4, 2: 4, 3: 4, 4: 2 };
+        const weekOffsets = { 1: 0, 2: 4, 3: 8, 4: 12 };
 
         function updateWeekOptions() {
             const modId = parseInt(document.getElementById('matModule').value);
@@ -2190,6 +2271,120 @@
         }
     </script>
 
+    <script>
+        // ================= GESTIÓN DE SEMANAS =================
+        let allWeeks = [];
+
+        async function loadWeeksTable() {
+            const filterMod = parseInt(document.getElementById('filterWeeksModule').value);
+            
+            try {
+                let query = supabase.from('formation_weeks').select('*').order('module_id', { ascending: true }).order('week_number', { ascending: true });
+                if (filterMod > 0) query = query.eq('module_id', filterMod);
+                
+                const { data, error } = await query;
+                if (error) throw error;
+                
+                allWeeks = data || [];
+                const tbody = document.getElementById('tableWeeks');
+                tbody.innerHTML = '';
+                
+                if (allWeeks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">No hay semanas registradas.</td></tr>';
+                    return;
+                }
+
+                allWeeks.forEach(w => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>Módulo ${w.module_id}</td>
+                            <td>Semana ${w.week_number}</td>
+                            <td>${w.title}</td>
+                            <td style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${w.description || ''}">${w.description || ''}</td>
+                            <td>
+                                <div style="display:flex; gap:10px;">
+                                    <button class="btn-primary" style="background:var(--accent-blue); padding:5px 10px; font-size:0.8rem;" onclick="editWeek(${w.id})">Editar</button>
+                                    <button class="btn-primary" style="background:var(--accent-purple); padding:5px 10px; font-size:0.8rem;" onclick="deleteWeek(${w.id}, ${w.week_number})">Eliminar</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                console.error("Error cargando semanas:", e);
+                glassAlert('Error al cargar semanas', 'error');
+            }
+        }
+
+        function showAddWeekForm() {
+            document.getElementById('formEditWeek').reset();
+            document.getElementById('editWeekId').value = '';
+            document.getElementById('formWeekTitle').innerText = 'Agregar Nueva Semana';
+            document.getElementById('formWeekContainer').style.display = 'block';
+            window.scrollTo({ top: document.getElementById('formWeekContainer').offsetTop - 50, behavior: 'smooth' });
+        }
+
+        function editWeek(id) {
+            const week = allWeeks.find(w => w.id === id);
+            if (!week) return;
+            
+            document.getElementById('editWeekId').value = week.id;
+            document.getElementById('editWeekModule').value = week.module_id;
+            document.getElementById('editWeekNumber').value = week.week_number;
+            document.getElementById('editWeekTitle').value = week.title;
+            document.getElementById('editWeekDesc').value = week.description || '';
+            
+            document.getElementById('formWeekTitle').innerText = 'Editar Semana';
+            document.getElementById('formWeekContainer').style.display = 'block';
+            window.scrollTo({ top: document.getElementById('formWeekContainer').offsetTop - 50, behavior: 'smooth' });
+        }
+
+        async function deleteWeek(id, weekNumber) {
+            if (!confirm(`¿Estás seguro de eliminar esta semana?\n\nADVERTENCIA: Si hay materiales subidos para la Semana ${weekNumber}, podrían dejar de mostrarse si no actualizas su número de semana.`)) return;
+            
+            try {
+                const { error } = await supabase.from('formation_weeks').delete().eq('id', id);
+                if (error) throw error;
+                glassAlert('Semana eliminada', 'success');
+                loadWeeksTable();
+            } catch (err) {
+                glassAlert('Error al eliminar semana', 'error');
+                console.error(err);
+            }
+        }
+
+        document.getElementById('formEditWeek')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editWeekId').value;
+            const payload = {
+                module_id: parseInt(document.getElementById('editWeekModule').value),
+                week_number: parseInt(document.getElementById('editWeekNumber').value),
+                title: document.getElementById('editWeekTitle').value,
+                description: document.getElementById('editWeekDesc').value
+            };
+            
+            try {
+                if (id) {
+                    const { error } = await supabase.from('formation_weeks').update(payload).eq('id', id);
+                    if (error) throw error;
+                    glassAlert('Semana actualizada correctamente.', 'success');
+                } else {
+                    const { error } = await supabase.from('formation_weeks').insert([payload]);
+                    if (error) throw error;
+                    glassAlert('Semana agregada correctamente.', 'success');
+                }
+                document.getElementById('formWeekContainer').style.display = 'none';
+                loadWeeksTable();
+            } catch (err) {
+                if (err.code === '23505') {
+                    glassAlert('Ese número de semana ya existe en ese módulo.', 'error');
+                } else {
+                    glassAlert('Error guardando semana.', 'error');
+                }
+                console.error(err);
+            }
+        });
+    </script>
 </body>
 
 </html>
